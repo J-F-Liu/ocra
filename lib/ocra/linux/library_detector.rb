@@ -12,7 +12,7 @@ module Ocra
           dlls << Pathname.new(dll) if dll =~ /\.so/
         end
       end
-      dlls
+      dlls.uniq
     end
 
     def LibraryDetector.detect_dlls

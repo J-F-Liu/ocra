@@ -625,6 +625,9 @@ EOF
     # Detect additional DLLs
     dlls = Ocra.autodll ? LibraryDetector.detect_dlls : []
     logger.info "Adding #{dlls.size} dlls"
+    dlls.each do |dll|
+      logger.info "    #{dll}"
+    end
 
     executable = nil
     if Ocra.output_override
