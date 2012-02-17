@@ -9,6 +9,15 @@ module Ocra
     end
     return :linux
   end
+
+  def self.windows?
+    platform == :windows
+  end
+
+  def self.linux?
+    platform == :linux
+  end
+  
 end
 
 require "ocra/#{Ocra.platform}/pathname"

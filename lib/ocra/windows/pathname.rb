@@ -16,14 +16,6 @@ module Ocra
       @path
     end
 
-    def to_native
-      @path.tr File::SEPARATOR, File::ALT_SEPARATOR
-    end
-    
-    def to_posix
-      @path.tr File::ALT_SEPARATOR, File::SEPARATOR
-    end
-
     # Compute the relative path from the 'src' path (directory) to 'tgt'
     # (directory or file). Return the absolute path to 'tgt' if it can't
     # be reached from 'src'.

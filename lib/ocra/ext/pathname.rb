@@ -40,6 +40,20 @@ class Pathname
     Pathname.pathequal(ext, expected_ext)
   end
 
+  def to_native
+    if Ocra.windows?
+      return @path.tr File::SEPARATOR, File::ALT_SEPARATOR
+    end
+    to_posix
+  end
+    
+  def to_posix
+    if Ocra.windows?
+      return @path.tr File::ALT_SEPARATOR, File::SEPARATOR
+    end
+    to_path
+  end
+
 end
 
 class Object
