@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # -*- ruby -*-
 $:.push(File.join(File.dirname(__FILE__), '..', 'lib'))
+require 'logger'
 require 'ocra'
 
 module Ocra  
@@ -70,23 +71,6 @@ module Ocra
     attr_reader :ediconpath
     attr_reader :stubimage
     attr_reader :stubwimage
-  end
-
-  def Ocra.msg(s)
-    puts "=== #{s}" unless Ocra.quiet
-  end
-
-  def Ocra.verbose_msg(s)
-    puts s if Ocra.verbose and not Ocra.quiet
-  end
-
-  def Ocra.warn(s)
-    msg "WARNING: #{s}" if Ocra.show_warnings
-  end
-
-  def Ocra.fatal_error(s)
-    puts "ERROR: #{s}"
-    exit 1
   end
 
   # Returns a binary blob store embedded in the current Ruby script.
@@ -212,13 +196,13 @@ EOF
         @options[:chdir_first] = true
       when /\A--icon\z/
         @options[:icon_filename] = Pathname(argv.shift)
-        Ocra.fatal_error "Icon file #{icon_filename} not found.\n" unless icon_filename.exist?
+        logger.fatal "Icon file #{icon_filename} not found.\n" unless icon_filename.exist?
       when /\A--gemfile\z/
         @options[:gemfile] = Pathname(argv.shift)
-        Ocra.fatal_error "Gemfile #{gemfile} not found.\n" unless gemfile.exist?
+        logger.fatal "Gemfile #{gemfile} not found.\n" unless gemfile.exist?
       when /\A--innosetup\z/
         @options[:inno_script] = Pathname(argv.shift)
-        Ocra.fatal_error "Inno Script #{inno_script} not found.\n" unless inno_script.exist?
+        logger.fatal "Inno Script #{inno_script} not found.\n" unless inno_script.exist?
       when /\A--no-autodll\z/
         @options[:autodll] = false
       when /\A--version\z/
@@ -248,15 +232,15 @@ EOF
     end
 
     if Ocra.debug_extract && Ocra.inno_script
-      Ocra.fatal_error "The --debug-extract option conflicts with use of Inno Setup"
+      logger.fatal "The --debug-extract option conflicts with use of Inno Setup"
     end
 
     if Ocra.lzma_mode && Ocra.inno_script
-      Ocra.fatal_error "LZMA compression must be disabled (--no-lzma) when using Inno Setup"
+      logger.fatal "LZMA compression must be disabled (--no-lzma) when using Inno Setup"
     end
 
     if !Ocra.chdir_first && Ocra.inno_script
-      Ocra.fatal_error "Chdir-first mode must be enabled (--chdir-first) when using Inno Setup"
+      logger.fatal "Chdir-first mode must be enabled (--chdir-first) when using Inno Setup"
     end
 
     if files.empty?
@@ -271,7 +255,7 @@ EOF
         path = "#{path}/**/*"
       end
       files = Dir[path]
-      Ocra.fatal_error "#{path} not found!" if files.empty?
+      logger.fatal "#{path} not found!" if files.empty?
       files.map { |path| Pathname(path).expand_path }
     }.flatten!
   end
@@ -300,9 +284,9 @@ EOF
             begin
               mod.const_get(const)
             rescue NameError
-              Ocra.warn "#{mod}::#{const} was defined autoloadable, but caused NameError"
+              logger.warn "#{mod}::#{const} was defined autoloadable, but caused NameError"
             rescue LoadError
-              Ocra.warn "#{mod}::#{const} was not loadable"
+              logger.warn "#{mod}::#{const} was not loadable"
             end
           end
         end
@@ -343,7 +327,7 @@ EOF
         loop do
           relpath = path.relative_path_from(srcroot)
           if relpath.absolute?
-            Ocra.fatal_error "No common directory contains all specified files"
+            logger.fatal "No common directory contains all specified files"
           end
           if relpath.to_s =~ /^\.\.\//
             srcroot = srcroot.dirname
@@ -376,13 +360,13 @@ EOF
 
     # If a Bundler Gemfile was provided, add all gems it specifies
     if Ocra.gemfile
-      Ocra.msg "Scanning Gemfile"
+      logger.info "Scanning Gemfile"
       # Load Rubygems and Bundler so we can scan the Gemfile
       ['rubygems', 'bundler'].each do |lib|
         begin
           require lib
         rescue LoadError
-          Ocra.fatal_error "Couldn't scan Gemfile, unable to load #{lib}"
+          logger.fatal "Couldn't scan Gemfile, unable to load #{lib}"
         end
       end
 
@@ -454,7 +438,7 @@ EOF
           end
         end
 
-        Ocra.msg "Detected gem #{spec.full_name} (#{include.join(', ')})"
+        logger.info "Detected gem #{spec.full_name} (#{include.join(', ')})"
 
         gem_root = gempath / "gems" / spec.full_name
         gem_root_files = nil
@@ -483,11 +467,11 @@ EOF
         actual_files = files.select { |file| file.file? }
 
         (files - actual_files).each do |missing_file|
-          Ocra.warn "#{missing_file} was not found"
+          logger.warn "#{missing_file} was not found"
         end
 
         total_size = actual_files.inject(0) { |size, path| size + path.size }
-        Ocra.msg "\t#{actual_files.size} files, #{total_size} bytes"
+        logger.info "\t#{actual_files.size} files, #{total_size} bytes"
 
         gem_files += actual_files
       end
@@ -546,13 +530,13 @@ EOF
           if encpath.exist?
             encfiles = encpath.find_all_files(/\.so$/)
             size = encfiles.inject(0) { |sum,pn| sum + pn.size }
-            Ocra.msg "Including #{encfiles.size} encoding support files (#{size} bytes, use --no-enc to exclude)"
+            logger.info "Including #{encfiles.size} encoding support files (#{size} bytes, use --no-enc to exclude)"
             features.push(*encfiles)
           end
         end
       end
     else
-      Ocra.msg "Not including encoding support files"
+      logger.info "Not including encoding support files"
     end
 
     # Find features and decide where to put them in the temporary
@@ -617,13 +601,13 @@ EOF
         targetpath = GEMHOMEDIR / fullpath.relative_path_from(gemhome)
         libs << [ gemfile, targetpath ]
       else
-        Ocra.fatal_error "Don't know where to put gemfile #{gemfile}"
+        logger.fatal "Don't know where to put gemfile #{gemfile}"
       end
     end
 
     # If requested, add all ruby standard libraries
     if Ocra.add_all_core
-      Ocra.msg "Will include all ruby core libraries"
+      logger.info "Will include all ruby core libraries"
       @load_path_before.each do |lp|
         path = Pathname.new(lp)
         next unless path.to_posix =~
@@ -640,7 +624,7 @@ EOF
 
     # Detect additional DLLs
     dlls = Ocra.autodll ? LibraryDetector.detect_dlls : []
-    Ocra.msg "Adding #{dlls.size} dlls"
+    logger.info "Adding #{dlls.size} dlls"
 
     executable = nil
     if Ocra.output_override
@@ -652,11 +636,11 @@ EOF
 
     windowed = (Ocra.files.first.ext?('.rbw') || Ocra.force_windows) && !Ocra.force_console
 
-    Ocra.msg "Building #{executable}"
+    logger.info "Building #{executable}"
     target_script = nil
     Ocra::Builder.new(executable, windowed) do |sb|
       # Add explicitly mentioned files
-      Ocra.msg "Adding user-supplied source files"
+      logger.info "Adding user-supplied source files"
       Ocra.files.each do |file|
         file = src_prefix / file
         if file.subpath?(Host.exec_prefix)
@@ -683,7 +667,7 @@ EOF
       else
         rubyexe = Host.ruby_exe
       end
-      Ocra.msg "Adding ruby executable #{rubyexe}"
+      logger.info "Adding ruby executable #{rubyexe}"
       sb.createfile(Host.bindir / rubyexe, BINDIR / rubyexe)
       if Host.libruby_so
         sb.createfile(Host.bindir / Host.libruby_so, BINDIR / Host.libruby_so)
@@ -691,7 +675,7 @@ EOF
 
       # Add detected DLLs
       dlls.each do |dll|
-        Ocra.msg "Adding detected DLL #{dll}"
+        logger.info "Adding detected DLL #{dll}"
         if dll.subpath?(Host.exec_prefix)
           target = dll.relative_path_from(Host.exec_prefix)
         else
@@ -702,7 +686,7 @@ EOF
       
       # Add extra DLLs specified on the command line
       Ocra.extra_dlls.each do |dll|
-        Ocra.msg "Adding supplied DLL #{dll}"
+        logger.info "Adding supplied DLL #{dll}"
         sb.createfile(Host.bindir / dll, BINDIR / dll)
       end
       
@@ -716,12 +700,12 @@ EOF
           path = GEMHOMEDIR / gemspec.relative_path_from(gemhome)
           sb.createfile(gemspec, path)
         else
-          Ocra.fatal_error "Gem spec #{gemspec} does not exist in the Ruby installation. Don't know where to put it."
+          logger.fatal "Gem spec #{gemspec} does not exist in the Ruby installation. Don't know where to put it."
         end
       end
 
       # Add loaded libraries (features, gems)
-      Ocra.msg "Adding library files"
+      logger.info "Adding library files"
       libs.each do |path, target|
         sb.createfile(path, target)
       end
@@ -740,7 +724,7 @@ EOF
     end
 
     unless Ocra.inno_script
-      Ocra.msg "Finished building #{executable} (#{File.size(executable)} bytes)"
+      logger.info "Finished building #{executable} (#{File.size(executable)} bytes)"
     end
   end
 
@@ -748,12 +732,22 @@ EOF
   
 end # module Ocra
 
+# Setup a logger and connect it with stupid libraries
+# that can't use a logger
+Ocra.logger = Logger.new(STDERR)
+# Don't show by default anything
+Ocra.logger.level = Logger::INFO
+
+Ocra.logger.level = Logger::FATAL if Ocra.quiet
+Ocra.logger.level = Logger::INFO if Ocra.verbose
+Ocra.logger.level = Logger::DEBUG if Ocra.debug
+
 if File.basename(__FILE__) == File.basename($0)
   Ocra.init(ARGV)
   ARGV.replace(Ocra.arg)
 
   if not Ocra.files.first.exist?
-    Ocra.fatal_error "#{Ocra.files[0]} was not found!"
+    Ocra.logger.fatal "#{Ocra.files[0]} was not found!"
   end
   
   at_exit do
@@ -764,7 +758,7 @@ if File.basename(__FILE__) == File.basename($0)
   end
 
   if Ocra.run_script
-    Ocra.msg "Loading script to check dependencies"
+    Ocra.logger.info "Loading script to check dependencies"
     $0 = Ocra.files.first.to_s
     load Ocra.files.first.to_s
   end
