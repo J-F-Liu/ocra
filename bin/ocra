@@ -626,7 +626,7 @@ EOF
     dlls = Ocra.autodll ? LibraryDetector.detect_dlls : []
     logger.info "Adding #{dlls.size} dlls"
     dlls.each do |dll|
-      logger.info "    #{dll}"
+      logger.debug "    #{dll}"
     end
 
     executable = nil
@@ -742,8 +742,7 @@ Ocra.logger = Logger.new(STDERR)
 Ocra.logger.level = Logger::INFO
 
 Ocra.logger.level = Logger::FATAL if Ocra.quiet
-Ocra.logger.level = Logger::INFO if Ocra.verbose
-Ocra.logger.level = Logger::DEBUG if Ocra.debug
+Ocra.logger.level = Logger::DEBUG if Ocra.verbose
 
 if File.basename(__FILE__) == File.basename($0)
   Ocra.init(ARGV)
