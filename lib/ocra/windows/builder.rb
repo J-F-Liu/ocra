@@ -47,7 +47,7 @@ module Ocra
         end
 
         if Ocra.debug
-          Ocra.msg("Enabling debug mode in executable")
+          Ocra.logger.info("Enabling debug mode in executable")
           ocrafile.write([OP_ENABLE_DEBUG_MODE].pack("V"))
         end
 
@@ -58,7 +58,7 @@ module Ocra
         if Ocra.lzma_mode and not Ocra.inno_script
           begin
             File.open("tmpin", "wb") { |tmp| tmp.write(@of) }
-            Ocra.msg "Compressing #{@of.size} bytes"
+            Ocra.logger.info "Compressing #{@of.size} bytes"
             system("\"#{Ocra.lzmapath}\" e tmpin tmpout 2>NUL") or fail
             compressed_data = File.open("tmpout", "rb") { |tmp| tmp.read }
             ocrafile.write([OP_DECOMPRESS_LZMA, compressed_data.size, compressed_data].pack("VVA*"))
@@ -93,7 +93,7 @@ module Ocra
           end
           iss << "\n"
 
-          Ocra.verbose_msg "### INNOSETUP SCRIPT ###\n\n#{iss}\n\n"
+          Ocra.logger.debug "### INNOSETUP SCRIPT ###\n\n#{iss}\n\n"
 
           f = File.open("ocratemp.iss", "w")
           f.write(iss)
@@ -124,7 +124,7 @@ module Ocra
     def mkdir(path)
       return if @paths[path.to_path.downcase]
       @paths[path.to_path.downcase] = true
-      Ocra.verbose_msg "m #{showtempdir path}"
+      Ocra.logger.debug "m #{showtempdir path}"
       unless Ocra.inno_script # The directory will be created by InnoSetup with a [Dirs] statement
         @of << [OP_CREATE_DIRECTORY, path.to_native].pack("VZ*")
       end
@@ -151,24 +151,24 @@ module Ocra
       src, tgt = Ocra.Pathname(src), Ocra.Pathname(tgt)
       ensuremkdir(tgt.dirname)
       str = File.open(src, "rb") { |file| file.read }
-      Ocra.verbose_msg "a #{showtempdir tgt}"
+      Ocra.logger.debug "a #{showtempdir tgt}"
       unless Ocra.inno_script # InnoSetup will install the file with a [Files] statement
         @of << [OP_CREATE_FILE, tgt.to_native, str.size, str].pack("VZ*VA*")
       end
     end
 
     def createprocess(image, cmdline)
-      Ocra.verbose_msg "l #{showtempdir image} #{showtempdir cmdline}"
+      Ocra.logger.debug "l #{showtempdir image} #{showtempdir cmdline}"
       @of << [OP_CREATE_PROCESS, image.to_native, cmdline].pack("VZ*Z*")
     end
 
     def postcreateprocess(image, cmdline)
-      Ocra.verbose_msg "p #{showtempdir image} #{showtempdir cmdline}"
+      Ocra.logger.debug "p #{showtempdir image} #{showtempdir cmdline}"
       @of << [OP_POST_CREATE_PROCESS, image.to_native, cmdline].pack("VZ*Z*")
     end
 
     def setenv(name, value)
-      Ocra.verbose_msg "e #{name} #{showtempdir value}"
+      Ocra.logger.debug "e #{name} #{showtempdir value}"
       @of << [OP_SETENV, name, value].pack("VZ*Z*")
     end
 
