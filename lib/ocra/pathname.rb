@@ -12,6 +12,7 @@ module Ocra
       a.downcase == b.downcase
     end
 
+    attr_reader :path
     SEPARATOR_PAT = /[#{Regexp.quote File::ALT_SEPARATOR}#{Regexp.quote File::SEPARATOR}]/ # }
     ABSOLUTE_PAT = /\A([A-Z]:)?#{SEPARATOR_PAT}/i
     
@@ -19,10 +20,6 @@ module Ocra
       @path = path
     end
     
-    def to_path
-      @path
-    end
-
     def to_native
       @path.tr File::SEPARATOR, File::ALT_SEPARATOR
     end
@@ -58,7 +55,7 @@ module Ocra
     # Join two pathnames together. Returns the right-hand side if it
     # is an absolute path. Otherwise, returns the full path of the
     # left + right.
-    def +(other)
+    def /(other)
       other = Ocra.Pathname(other)
       if other.absolute?
         other
@@ -87,8 +84,28 @@ module Ocra
       Dir.entries(@path).map { |e| self / e }
     end
 
+    # Recursively find all files which match a specified regular
+    # expression.
+    def find_all_files(re)
+      entries.map do |pn|
+        if pn.directory?
+          if pn.basename =~ /^\.\.?$/
+            []
+          else
+            pn.find_all_files(re)
+          end
+        elsif pn.file?
+          if pn.basename =~ re
+            pn
+          else
+            []
+          end
+        end
+      end.flatten
+    end
 
     def ==(other); to_posix.downcase == other.to_posix.downcase; end
+    def =~(o); @path =~ o; end
     def <=>(other); @path.casecmp(other.path); end
     def exist?; File.exist?(@path); end
     def file?; File.file?(@path); end

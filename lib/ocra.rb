@@ -20,7 +20,7 @@ module Ocra
   
 end
 
-require "ocra/#{Ocra.platform}/pathname"
+require "ocra/pathname"
 # pathname extensions
 require 'ocra/ext/pathname'
 
