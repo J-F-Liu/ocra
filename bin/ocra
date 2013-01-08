@@ -40,6 +40,8 @@ module Ocra
   GEMHOMEDIR = Pathname.new('gemhome')
 
   @options = {
+    :run_in_tempdir => true,
+    :no_package => false,
     :lzma_mode => true,
     :extra_dlls => [],
     :files => [],
@@ -126,6 +128,7 @@ Packaging options:
 --add-all-core     Add all core ruby libraries to the executable.
 --gemfile <file>   Add all gems and dependencies listed in a Bundler Gemfile.
 --no-enc           Exclude encoding support files
+--no-package       Do not package files into the finial executable.
 
 Gem content detection modes:
 
@@ -219,6 +222,9 @@ EOF
         ARGV.clear
       when /\A--(no-)?enc\z/
         @options[:enc] = !$1
+      when /\A--no-package\z/
+        @options[:no_package] = true
+        @options[:run_in_tempdir] = false
       when /\A--(no-)?gem-(\w+)(?:=(.*))?$/
         negate, group, list = $1, $2, $3
         @options[:gem] ||= []
@@ -282,7 +288,7 @@ EOF
         mod.constants.each do |const|
           # Module::Config causes warning on Ruby 1.9.3 - prevent autoloading
           next if Module === mod && const == :Config
-          
+
           if mod.autoload?(const)
             begin
               mod.const_get(const)
@@ -645,75 +651,78 @@ EOF
     logger.info "Building #{executable}"
     target_script = nil
     Ocra::Builder.new(executable, windowed) do |sb|
-      # Add explicitly mentioned files
-      logger.info "Adding user-supplied source files"
-      Ocra.files.each do |file|
-        file = src_prefix / file
-        if file.subpath?(Host.exec_prefix)
-          target = file.relative_path_from(Host.exec_prefix)
-        elsif file.subpath?(src_prefix)
-          target = SRCDIR / file.relative_path_from(src_prefix)
-        else
-          target = SRCDIR / file.basename
-        end
-
-        target_script ||= target
-
-        if file.directory?
-          #FIXME sb.ensuremkdir(target)
-          FileUtils.mkdir_p(target)
-        else
-          sb.createfile(file, target)
-        end
-      end
-
-      # Add the ruby executable and DLL
       if windowed
         rubyexe = Host.rubyw_exe
       else
         rubyexe = Host.ruby_exe
       end
-      logger.info "Adding ruby executable #{rubyexe}"
-      sb.createfile(Host.bindir / rubyexe, BINDIR / rubyexe)
-      if Host.libruby_so
-        sb.createfile(Host.bindir / Host.libruby_so, BINDIR / Host.libruby_so)
-      end
-
-      # Add detected DLLs
-      dlls.each do |dll|
-        logger.info "Adding detected DLL #{dll}"
-        if dll.subpath?(Host.exec_prefix)
-          target = dll.relative_path_from(Host.exec_prefix)
-        else
-          target = BINDIR / File.basename(dll)
-        end
-        sb.createfile(dll, target)
-      end
       
-      # Add extra DLLs specified on the command line
-      Ocra.extra_dlls.each do |dll|
-        logger.info "Adding supplied DLL #{dll}"
-        sb.createfile(Host.bindir / dll, BINDIR / dll)
-      end
-      
-      # Add gemspec files
-      @gemspecs = sort_uniq(@gemspecs)
-      @gemspecs.each do |gemspec|
-        if gemspec.subpath?(Host.exec_prefix)
-          path = gemspec.relative_path_from(Host.exec_prefix)
-          sb.createfile(gemspec, path)
-        elsif defined?(Gem) and gemhome = Gem.path.find { |pth| gemspec.subpath?(pth) }
-          path = GEMHOMEDIR / gemspec.relative_path_from(gemhome)
-          sb.createfile(gemspec, path)
-        else
-          logger.fatal "Gem spec #{gemspec} does not exist in the Ruby installation. Don't know where to put it."
-        end
-      end
+      if Ocra.run_in_tempdir
+        # Add explicitly mentioned files
+        logger.info "Adding user-supplied source files"
+        Ocra.files.each do |file|
+          file = src_prefix / file
+          if file.subpath?(Host.exec_prefix)
+            target = file.relative_path_from(Host.exec_prefix)
+          elsif file.subpath?(src_prefix)
+            target = SRCDIR / file.relative_path_from(src_prefix)
+          else
+            target = SRCDIR / file.basename
+          end
 
-      # Add loaded libraries (features, gems)
-      logger.info "Adding library files"
-      libs.each do |path, target|
-        sb.createfile(path, target)
+          target_script ||= target
+
+          if file.directory?
+            #FIXME sb.ensuremkdir(target)
+            FileUtils.mkdir_p(target)
+          else
+            sb.createfile(file, target)
+          end
+        end
+
+        # Add the ruby executable and DLL
+        logger.info "Adding ruby executable #{rubyexe}"
+        sb.createfile(Host.bindir / rubyexe, BINDIR / rubyexe)
+        if Host.libruby_so
+          sb.createfile(Host.bindir / Host.libruby_so, BINDIR / Host.libruby_so)
+        end
+
+        # Add detected DLLs
+        dlls.each do |dll|
+          logger.info "Adding detected DLL #{dll}"
+          if dll.subpath?(Host.exec_prefix)
+            target = dll.relative_path_from(Host.exec_prefix)
+          else
+            target = BINDIR / File.basename(dll)
+          end
+          sb.createfile(dll, target)
+        end
+        
+        # Add extra DLLs specified on the command line
+        Ocra.extra_dlls.each do |dll|
+          logger.info "Adding supplied DLL #{dll}"
+          sb.createfile(Host.bindir / dll, BINDIR / dll)
+        end
+        
+        # Add gemspec files
+        @gemspecs = sort_uniq(@gemspecs)
+        @gemspecs.each do |gemspec|
+          if gemspec.subpath?(Host.exec_prefix)
+            path = gemspec.relative_path_from(Host.exec_prefix)
+            sb.createfile(gemspec, path)
+          elsif defined?(Gem) and gemhome = Gem.path.find { |pth| gemspec.subpath?(pth) }
+            path = GEMHOMEDIR / gemspec.relative_path_from(gemhome)
+            sb.createfile(gemspec, path)
+          else
+            logger.fatal "Gem spec #{gemspec} does not exist in the Ruby installation. Don't know where to put it."
+          end
+        end
+
+        # Add loaded libraries (features, gems)
+        logger.info "Adding library files"
+        libs.each do |path, target|
+          sb.createfile(path, target)
+        end
       end
 
       # Set environment variable

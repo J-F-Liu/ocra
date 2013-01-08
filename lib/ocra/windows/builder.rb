@@ -50,8 +50,10 @@ module Ocra
           Ocra.logger.info("Enabling debug mode in executable")
           ocrafile.write([OP_ENABLE_DEBUG_MODE].pack("V"))
         end
-
-        createinstdir Ocra.debug_extract, !Ocra.debug_extract, Ocra.chdir_first
+        
+        if Ocra.run_in_tempdir
+          createinstdir Ocra.debug_extract, !Ocra.debug_extract, Ocra.chdir_first
+        end
 
         yield(self)
 
