@@ -1,10 +1,10 @@
 #!/usr/bin/env ruby
 # -*- ruby -*-
-$:.push(File.join(File.dirname(__FILE__), '..', 'lib'))
+$:.unshift(File.expand_path('../lib', File.dirname(__FILE__)))
 require 'logger'
 require 'ocra'
 
-module Ocra  
+module Ocra
 
   # Sorts and returns an array without duplicates. Works with complex
   # objects (such as Pathname), in contrast to Array#uniq.
@@ -128,7 +128,7 @@ Packaging options:
 --add-all-core     Add all core ruby libraries to the executable.
 --gemfile <file>   Add all gems and dependencies listed in a Bundler Gemfile.
 --no-enc           Exclude encoding support files
---no-package       Do not package files into the finial executable.
+--no-package       Do not package files into the executable.
 
 Gem content detection modes:
 
@@ -225,6 +225,11 @@ EOF
       when /\A--no-package\z/
         @options[:no_package] = true
         @options[:run_in_tempdir] = false
+        @options[:run_script] = false
+        @options[:load_autoload] = false
+        @options[:autodll] = false
+        @options[:enc] = false
+        @options[:lzma_mode] = false
       when /\A--(no-)?gem-(\w+)(?:=(.*))?$/
         negate, group, list = $1, $2, $3
         @options[:gem] ||= []
@@ -254,16 +259,20 @@ EOF
       exit 1
     end
 
-    @options[:files].map! { |path|
-      path = path.tr('\\','/')
-      if File.directory?(path)
-        # If a directory is passed, we want all files under that directory
-        path = "#{path}/**/*"
-      end
-      files = Dir[path]
-      logger.fatal "#{path} not found!" if files.empty?
-      files.map { |path| Pathname(path).expand_path }
-    }.flatten!
+    if Ocra.no_package
+      @options[:files].map! { |path| Pathname(path) }
+    else
+      @options[:files].map! { |path|
+        path = path.tr('\\','/')
+        if File.directory?(path)
+          # If a directory is passed, we want all files under that directory
+          path = "#{path}/**/*"
+        end
+        files = Dir[path]
+        logger.fatal "#{path} not found!" if files.empty?
+        files.map { |path| Pathname(path).expand_path }
+      }.flatten!
+    end
   end
 
   def Ocra.init(argv)
@@ -316,12 +325,12 @@ EOF
       if feature_pairs.empty?
         nil
       else
-        feature_pairs.sort_by { |loadpath, feature| feature.to_path.size }.first[0]
+        feature_pairs.sort_by { |loadpath, feature| feature.path.size }.first[0]
       end
     else
       # Select the loadpaths that contain 'feature' and select the shortest
       candidates = loadpaths.select { |loadpath| feature.expand_path(loadpath).exist? }
-      candidates.sort_by { |loadpath| loadpath.to_path.size }.last
+      candidates.sort_by { |loadpath| loadpath.path.size }.last
     end
   end
   
@@ -396,7 +405,7 @@ EOF
           geminstallpath = Pathname(gempath) / "gems"
           if feature.subpath?(geminstallpath)
             gemlocalpath = feature.relative_path_from(geminstallpath)
-            fullgemname = gemlocalpath.to_path.split('/').first
+            fullgemname = gemlocalpath.path.split('/').first
             gems << [gempath, fullgemname]
             features_from_gems << feature
           end
@@ -529,7 +538,9 @@ EOF
     features -= features_from_gems
 
     # Find the source root and adjust paths
-    src_prefix, src_files = find_src_root(Ocra.files)
+    unless Ocra.no_package
+      src_prefix, src_files = find_src_root(Ocra.files)
+    end
 
     # Include encoding support files
     if Ocra.enc
@@ -594,8 +605,10 @@ EOF
 
     # Recompute the src_prefix. Files may have been added implicitly
     # while scanning through features.
-    src_prefix, src_files = find_src_root(Ocra.files)
-    Ocra.files.replace(src_files)
+    unless Ocra.no_package
+      src_prefix, src_files = find_src_root(Ocra.files)
+      Ocra.files.replace(src_files)
+    end
 
     # Add the load path that are required with the correct path after
     # src_prefix was adjusted.
@@ -638,18 +651,19 @@ EOF
       logger.debug "    #{dll}"
     end
 
+    target_script = Ocra.files.first
+
     executable = nil
     if Ocra.output_override
       executable = Ocra.output_override
     else
-      executable = Ocra.files.first.basename.ext('.exe')
+      executable = target_script.basename.ext('.exe')
       executable.append_to_filename!("-debug") if Ocra.debug
     end
 
-    windowed = (Ocra.files.first.ext?('.rbw') || Ocra.force_windows) && !Ocra.force_console
+    windowed = (target_script.ext?('.rbw') || Ocra.force_windows) && !Ocra.force_console
 
     logger.info "Building #{executable}"
-    target_script = nil
     Ocra::Builder.new(executable, windowed) do |sb|
       if windowed
         rubyexe = Host.rubyw_exe
@@ -669,8 +683,6 @@ EOF
           else
             target = SRCDIR / file.basename
           end
-
-          target_script ||= target
 
           if file.directory?
             #FIXME sb.ensuremkdir(target)
@@ -733,7 +745,7 @@ EOF
       # Add the opcode to launch the script
       extra_arg = Ocra.arg.map { |arg| ' "' + arg.gsub("\"","\\\"") + '"' }.join
       installed_ruby_exe = TEMPDIR_ROOT / BINDIR / rubyexe
-      launch_script = (TEMPDIR_ROOT / target_script).to_native
+      launch_script = (TEMPDIR_ROOT / SRCDIR / target_script).to_native
       sb.postcreateprocess(installed_ruby_exe,
         "#{rubyexe} \"#{launch_script}\"#{extra_arg}")
     end
@@ -760,8 +772,10 @@ if File.basename(__FILE__) == File.basename($0)
   Ocra.init(ARGV)
   ARGV.replace(Ocra.arg)
 
-  if not Ocra.files.first.exist?
-    Ocra.logger.fatal "#{Ocra.files[0]} was not found!"
+  unless Ocra.no_package
+    if not Ocra.files.first.exist?
+      Ocra.logger.fatal "#{Ocra.files[0]} was not found!"
+    end
   end
   
   at_exit do

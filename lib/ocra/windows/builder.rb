@@ -124,8 +124,8 @@ module Ocra
     end
 
     def mkdir(path)
-      return if @paths[path.to_path.downcase]
-      @paths[path.to_path.downcase] = true
+      return if @paths[path.path.downcase]
+      @paths[path.path.downcase] = true
       Ocra.logger.debug "m #{showtempdir path}"
       unless Ocra.inno_script # The directory will be created by InnoSetup with a [Dirs] statement
         @of << [OP_CREATE_DIRECTORY, path.to_native].pack("VZ*")
@@ -134,7 +134,7 @@ module Ocra
 
     def ensuremkdir(tgt)
       tgt = Ocra.Pathname(tgt)
-      return if tgt.to_path == "."
+      return if tgt.path == "."
       if not @paths[tgt.to_posix.downcase]
         ensuremkdir(tgt.dirname)
         mkdir(tgt)

@@ -1,5 +1,5 @@
 *.o
-*.exe
+*.gem
 bin/ocrasa.rb
 pkg
 README.txt
