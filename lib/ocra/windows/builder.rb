@@ -126,7 +126,7 @@ module Ocra
     def mkdir(path)
       return if @paths[path.path.downcase]
       @paths[path.path.downcase] = true
-      Ocra.logger.debug "m #{showtempdir path}"
+      Ocra.logger.debug "m #{show_appdir path}"
       unless Ocra.inno_script # The directory will be created by InnoSetup with a [Dirs] statement
         @of << [OP_CREATE_DIRECTORY, path.to_native].pack("VZ*")
       end
@@ -153,24 +153,24 @@ module Ocra
       src, tgt = Ocra.Pathname(src), Ocra.Pathname(tgt)
       ensuremkdir(tgt.dirname)
       str = File.open(src, "rb") { |file| file.read }
-      Ocra.logger.debug "a #{showtempdir tgt}"
+      Ocra.logger.debug "a #{show_appdir tgt.to_native}"
       unless Ocra.inno_script # InnoSetup will install the file with a [Files] statement
         @of << [OP_CREATE_FILE, tgt.to_native, str.size, str].pack("VZ*VA*")
       end
     end
 
     def createprocess(image, cmdline)
-      Ocra.logger.debug "l #{showtempdir image} #{showtempdir cmdline}"
+      Ocra.logger.debug "l #{show_appdir image.to_native} #{show_appdir cmdline}"
       @of << [OP_CREATE_PROCESS, image.to_native, cmdline].pack("VZ*Z*")
     end
 
     def postcreateprocess(image, cmdline)
-      Ocra.logger.debug "p #{showtempdir image} #{showtempdir cmdline}"
+      Ocra.logger.debug "run #{show_appdir image.to_native} #{show_appdir cmdline}"
       @of << [OP_POST_CREATE_PROCESS, image.to_native, cmdline].pack("VZ*Z*")
     end
 
     def setenv(name, value)
-      Ocra.logger.debug "e #{name} #{showtempdir value}"
+      Ocra.logger.debug "env #{name} #{show_appdir value}"
       @of << [OP_SETENV, name, value].pack("VZ*Z*")
     end
 
@@ -178,8 +178,8 @@ module Ocra
       @of.close
     end
 
-    def showtempdir(x)
-      x.to_s.gsub(TEMPDIR_ROOT, "<tempdir>")
+    def show_appdir(x)
+      x.to_s.gsub(AppDir, "<appdir>")
     end
     
   end # class Builder
