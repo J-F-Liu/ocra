@@ -24,13 +24,19 @@ any additionally needed ruby libraries or DLL.
 Added two command line options:
   --no-package       Do not package files into the executable.
   --env              Set additional environment variables when starting the application.
+
 Example usage:
+
 Step 1. use <tt>--debug-extract</tt> option to generate a self-extracting executable file.
   ocra your_script.rb your_applicatin_folder_path --output e:\Package\your_applicatin.exe --gemfile Gemfile --gem-all --chdir-first --no-autoload --debug-extract
+
 Step 2. run the generated your_applicatin.exe, the extracted files won't be deleted.
+
 Step 3. use <tt>--no-package</tt> option to generate a self-running executable file.
   ocra your_script.rb --output e:\Package\your_applicatin.exe --chdir-first --no-package --env PADRINO_ENV:production
+
 Step 4. move the generated your_applicatin.exe to the extracted folder in step 2, now you have a portable application which loads much faster without self-extracting!
+
 Step 5. run your_applicatin.exe, if it doesn't work add <tt>--verbose</tt> or <tt>--debug</tt> option in step 3 to see what's wrong.
 
 == PROBLEMS & BUG REPORTING:
