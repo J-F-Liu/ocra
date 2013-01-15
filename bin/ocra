@@ -690,7 +690,7 @@ EOF
 
           if file.directory?
             #FIXME sb.ensuremkdir(target)
-            FileUtils.mkdir_p(target)
+            #FileUtils.mkdir_p(target)
           else
             sb.createfile(file, target)
           end
